@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FRM Species Database</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- Cinematic background -->
+  <div class="bg-cinema" aria-hidden="true">
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+    <div class="grain"></div>
+  </div>
+
+  <!-- Drawer (right) -->
+  <aside id="drawer" class="drawer" aria-hidden="true" aria-labelledby="menuBtn">
+    <div class="drawer-header">
+      <h3>FRM Species Database</h3>
+      <button id="drawerClose" class="icon-btn" aria-label="Close">✕</button>
+    </div>
+    <nav id="drawerNav" class="drawer-nav">
+      <button class="nav-link ripple" data-go="home">Home</button>
+      <button class="nav-link ripple" data-go="scientific">Scientific Name</button>
+      <button class="nav-link ripple" data-go="common">Common Name</button>
+      <button class="nav-link ripple" data-go="leaf">Leaf Type</button>
+      <button class="nav-link ripple" data-go="fruit">Fruit Type</button>
+    </nav>
+    <div class="drawer-footer">
+      <label class="switch">
+        <input id="themeToggle" type="checkbox" />
+        <span class="slider"></span>
+        <span class="switch-label">Dark Mode</span>
+      </label>
+    </div>
+  </aside>
+  <div id="scrim" class="scrim" tabindex="-1" aria-hidden="true"></div>
+
+  <!-- Header -->
+  <header class="app-header">
+    <button id="backBtn" class="icon-btn" aria-label="Back" hidden>‹</button>
+    <button id="menuBtn" class="icon-btn" aria-label="Menu">☰</button>
+    <h1 class="title">FRM Species Database</h1>
+    <div class="header-actions">
+      <button id="quickSearchBtn" class="icon-btn" aria-label="Search">🔎</button>
+    </div>
+  </header>
+
+  <main id="app" class="page">
+    <!-- HOME -->
+    <section id="view-home" class="view active" data-transition="slide">
+      <div class="hero">
+        <h2>Explore native & planted trees</h2>
+        <p>Browse by scientific name, common name, leaf type, or fruit type. Smooth search, rich photos, and crisp details.</p>
+      </div>
+
+      <div id="homeList" class="home-list">
+        <button class="menu-card ripple" data-go="scientific">1) Scientific Name</button>
+        <button class="menu-card ripple" data-go="common">2) Common Name</button>
+        <button class="menu-card ripple" data-go="leaf">3) Leaf Type</button>
+        <button class="menu-card ripple" data-go="fruit">4) Fruit Type</button>
+      </div>
+
+      <div class="home-search glass">
+        <input id="homeSearch" type="search" placeholder="Search by scientific or common name…" aria-label="Search all" />
+        <button id="homeSearchBtn" class="btn ripple">Search</button>
+      </div>
+    </section>
+
+    <!-- SHARED LIST VIEW -->
+    <section id="view-list" class="view" data-transition="fade">
+      <div class="section-header">
+        <h2 id="listTitle"></h2>
+        <input id="searchInput" type="search" placeholder="Search…" aria-label="Search in list" />
+      </div>
+      <ul id="listSkeleton" class="list">
+        <li class="skeleton"></li><li class="skeleton"></li><li class="skeleton"></li>
+      </ul>
+      <ul id="listContainer" class="list" hidden></ul>
+    </section>
+
+    <!-- LEAF TYPE -->
+    <section id="view-leaf" class="view" data-transition="slide">
+      <h2>Leaf Type</h2>
+      <div class="chips" id="leafTopChips"></div>
+      <ul id="leafResults" class="list"></ul>
+    </section>
+
+    <!-- FRUIT TYPE -->
+    <section id="view-fruit" class="view" data-transition="slide">
+      <h2>Fruit Type</h2>
+      <div class="chips" id="fruitChips"></div>
+      <ul id="fruitResults" class="list"></ul>
+    </section>
+
+    <!-- DETAIL -->
+    <section id="view-detail" class="view" data-transition="zoom">
+      <article id="detailCard" class="card glass"></article>
+    </section>
+  </main>
+
+  <!-- Bottom sheet for pinnate subtypes -->
+  <div id="sheet" class="sheet" aria-hidden="true">
+    <div class="sheet-handle"></div>
+    <h3 class="sheet-title">Choose subtype</h3>
+    <div id="leafSubChips" class="chips"></div>
+    <button id="sheetClose" class="btn sheet-close ripple" aria-label="Close">Done</button>
+  </div>
+
+  <footer class="app-footer"><div class="footer-content">© Foundation Rai Matak</div></footer>
+
+  <script>
+    /* ========= STATE ========= */
+    const state = {
+      data: [],
+      filters: {
+        leaf_toplevel: ['Simple','Pinnately compound','Palmately compound'],
+        leaf_subtypes_possible: ['single','double'],
+        fruit_types: [],
+        leaf_chip_icons: {},
+        fruit_chip_icons: {}
+      },
+      history: ['home'],
+      prefersReduced: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    };
+
+    /* ========= HELPERS ========= */
+    const el = (s) => document.querySelector(s);
+    const els = (s, root=document) => Array.from(root.querySelectorAll(s));
+
+    // ---- FIXED: show() NO LONGER clears other views ----
+    function show(viewId, push = true){
+      els('.view').forEach(v=>v.classList.remove('active'));
+      const target = el('#view-'+viewId);
+      target.classList.add('active');
+
+      if (push && state.history[state.history.length-1] !== viewId) {
+        state.history.push(viewId);
+      }
+      el('#backBtn').hidden = state.history.length <= 1;
+      el('#menuBtn').hidden = state.history.length > 1;
+
+      closeDrawer(); closeSheet();
+    }
+
+    /* ------ Back: lightweight, no cleanup ------ */
+    function back(){
+      if (state.history.length > 1){
+        state.history.pop();
+        const prev = state.history[state.history.length - 1];
+
+        els('.view').forEach(v => v.classList.remove('active'));
+        el('#view-' + prev).classList.add('active');
+
+        el('#backBtn').hidden = state.history.length <= 1;
+        el('#menuBtn').hidden = state.history.length > 1;
+
+        closeDrawer(); closeSheet();
+      }
+    }
+
+    /* ========= RENDERERS ========= */
+    function renderList(items, titleKey, subKey, titleText){
+      el('#listTitle').textContent = titleText;
+      const list = el('#listContainer');
+      list.innerHTML = items.map(r=>{
+        const title = (r[titleKey]||'').trim();
+        const sub = (r[subKey]||'').trim();
+        const icon = (r.icons && r.icons.species) ? r.icons.species : '';
+        return `
+          <li class="list-item ripple" data-id="${r.id}">
+            ${icon ? `<img class="thumb" src="${icon}" alt="" loading="lazy">` : ''}
+            <div class="li-text">
+              <div class="li-title">${title || '-'}</div>
+              <div class="li-sub">${sub || ''}</div>
+            </div>
+          </li>`;
+      }).join('');
+
+      el('#listSkeleton').hidden = true;
+      list.hidden = false;
+
+      show('list');
+      attachRipples(list);
+    }
+
+    function renderChipsWithIcons(container, entries, iconMap){
+      container.innerHTML = (entries || []).map(v=>{
+        const icon = iconMap && iconMap[v] ? iconMap[v] : '';
+        return `<button class="chip ripple" data-value="${v}">
+          ${icon ? `<img class="chip-ico" src="${icon}" alt="" loading="lazy">` : ''}
+          <span>${v}</span>
+        </button>`;
+      }).join('');
+      attachRipples(container);
+    }
+
+    function renderResultList(ul, items){
+      ul.innerHTML = items.length ? items.map(r=>{
+        const icon = (r.icons && r.icons.species) ? r.icons.species : '';
+        return `
+          <li class="list-item ripple" data-id="${r.id}">
+            ${icon ? `<img class="thumb" src="${icon}" alt="" loading="lazy">` : ''}
+            <div class="li-text">
+              <div class="li-title">${r.scientific_name || '-'}</div>
+              <div class="li-sub">${r.common_name || ''}</div>
+            </div>
+          </li>`;
+      }).join('') : '<div class="empty">No matches.</div>';
+      attachRipples(ul);
+    }
+
+    /* ========= SLIDER ========= */
+    function initSlider(container){
+      if (!container) return;
+      const stage  = container.querySelector('.s-stage');
+      const slides = Array.from(container.querySelectorAll('.s-slide'));
+      const dots   = Array.from(container.querySelectorAll('.s-dot'));
+      let idx = 0;
+
+      function go(n){
+        if (!slides.length) return;
+        idx = (n + slides.length) % slides.length;
+        stage.style.transform = `translateX(${-idx * 100}%)`;
+        dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
+      }
+
+      container.querySelector('.s-nav.prev')?.addEventListener('click', ()=>go(idx-1));
+      container.querySelector('.s-nav.next')?.addEventListener('click', ()=>go(idx+1));
+      dots.forEach(d=> d.addEventListener('click', ()=> go(+d.dataset.i)));
+
+      // keyboard
+      container.tabIndex = 0;
+      container.addEventListener('keydown', (e)=>{
+        if (e.key === 'ArrowLeft') go(idx-1);
+        if (e.key === 'ArrowRight') go(idx+1);
+      });
+
+      // swipe
+      let sx=0, dx=0;
+      stage.addEventListener('touchstart', e=> sx = e.touches[0].clientX, {passive:true});
+      stage.addEventListener('touchmove',  e=> dx = e.touches[0].clientX, {passive:true});
+      stage.addEventListener('touchend',   ()=>{
+        const delta = dx - sx;
+        if (Math.abs(delta) > 40) { delta < 0 ? go(idx+1) : go(idx-1); }
+        sx=dx=0;
+      }, {passive:true});
+
+      // lightbox on click
+      stage.addEventListener('click', e=>{
+        const img = e.target.closest('img');
+        if (!img) return;
+        const lb = document.createElement('div');
+        lb.className = 'lightbox';
+        lb.innerHTML = `<img class="lightbox-img" src="${img.src}" alt="">`;
+        document.body.appendChild(lb);
+        lb.addEventListener('click', ()=> lb.remove(), {once:true});
+      });
+
+      go(0);
+    }
+
+    function openDetail(id){
+      fetch(`api/species/${id}`)
+        .then(r => r.ok ? r.json() : Promise.reject('HTTP ' + r.status))
+        .then(rec => {
+          const section = (label, value) => `
+            <div class="kv-block">
+              <div class="kv-head">${label}</div>
+              <div class="kv-body">${value || '-'}</div>
+            </div>
+          `;
+
+          const spIcon   = rec.icons && rec.icons.species ? `<img class="detail-ico" src="${rec.icons.species}" alt="">` : '';
+          const leafIco  = rec.icons && rec.icons.leaf    ? `<img class="mini-ico"   src="${rec.icons.leaf}"    alt="">` : '';
+          const fruitIco = rec.icons && rec.icons.fruit   ? `<img class="mini-ico"   src="${rec.icons.fruit}"   alt="">` : '';
+
+          const photos = Array.isArray(rec.photos) ? rec.photos : [];
+
+          /* Slider FIRST, then details */
+          el('#detailCard').innerHTML = `
+            ${photos.length ? `
+              <div id="photoSlider" class="slider" aria-roledescription="carousel" aria-label="Species photos">
+                <button class="s-nav prev" aria-label="Previous photo">‹</button>
+                <div class="s-stage">
+                  ${photos.map(src => `<img class="s-slide" src="${src}" alt="${rec.scientific_name} photo" loading="lazy">`).join('')}
+                </div>
+                <button class="s-nav next" aria-label="Next photo">›</button>
+                <div class="s-dots">
+                  ${photos.map((_,i)=>`<button class="s-dot ${i===0?'active':''}" data-i="${i}" aria-label="Go to photo ${i+1}"></button>`).join('')}
+                </div>
+              </div>
+            ` : `
+              <div class="no-photos big">No photos yet.</div>
+            `}
+
+            <div class="detail-header">
+              ${spIcon}
+              <div class="detail-title">
+                <h2>${rec.scientific_name}</h2>
+                ${rec.common_name ? `<div class="detail-sub">${rec.common_name}</div>` : ''}
+              </div>
+            </div>
+
+            ${section('Habitat', rec.habitat)}
+            ${section('Phenology', rec.phenology)}
+            ${section('Identification Character', rec.identification)}
+            ${section('Leaf Type',  `${leafIco} ${rec.leaf_type_raw || ''}`)}
+            ${section('Fruit Type', `${fruitIco} ${rec.fruit_type    || ''}`)}
+            ${section('Seed Germination', rec.seed_germination)}
+            ${section('Pest', rec.pest)}
+          `;
+
+          if (photos.length) initSlider(document.getElementById('photoSlider'));
+          show('detail');
+        })
+        .catch(err => {
+          console.error('Failed to load species detail:', err);
+          alert('Could not load species detail.');
+        });
+    }
+
+    /* ========= EVENTS ========= */
+    const drawer = el('#drawer'), scrim = el('#scrim'), sheet = el('#sheet');
+    function openDrawer(){ drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); scrim.classList.add('show'); scrim.setAttribute('aria-hidden','false'); }
+    function closeDrawer(){ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); scrim.classList.remove('show'); scrim.setAttribute('aria-hidden','true'); }
+    function openSheet(){ sheet.classList.add('open'); sheet.setAttribute('aria-hidden','false'); }
+    function closeSheet(){ sheet.classList.remove('open'); sheet.setAttribute('aria-hidden','true'); }
+
+    el('#menuBtn').addEventListener('click', openDrawer);
+    el('#drawerClose').addEventListener('click', closeDrawer);
+    el('#backBtn').addEventListener('click', back);
+    scrim.addEventListener('click', ()=>{ closeDrawer(); closeSheet(); });
+
+    const themeToggle = el('#themeToggle');
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    themeToggle.checked = savedTheme === 'dark';
+    setTheme(savedTheme);
+    themeToggle.addEventListener('change', ()=> setTheme(themeToggle.checked ? 'dark' : 'light'));
+    function setTheme(mode){ document.documentElement.dataset.theme = mode; localStorage.setItem('theme', mode); }
+
+    document.addEventListener('click', (e)=>{
+      const it = e.target.closest('.list-item');
+      if (it && it.dataset.id){ openDetail(it.dataset.id); return; }
+
+      const chip = e.target.closest('.chip');
+      if (chip){
+        const container = chip.parentElement;
+        container.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+        chip.classList.add('active');
+        const value = chip.dataset.value;
+
+        if (container.id === 'leafTopChips'){
+          const results = state.data.filter(r=> r.leaf_category === value);
+          if (value === 'Pinnately compound'){
+            openSheet();
+            renderChipsWithIcons(el('#leafSubChips'), state.filters.leaf_subtypes_possible, {});
+            el('#leafResults').innerHTML = '';
+          } else {
+            closeSheet();
+            renderResultList(el('#leafResults'), results);
+          }
+        } else if (container.id === 'leafSubChips'){
+          const results = state.data.filter(r=> r.leaf_category === 'Pinnately compound'
+                                            && (r.leaf_subtype||'') === value);
+          renderResultList(el('#leafResults'), results);
+        } else if (container.id === 'fruitChips'){
+          const results = state.data.filter(r=> (r.fruit_type||'').toLowerCase() === value.toLowerCase());
+          renderResultList(el('#fruitResults'), results);
+        }
+      }
+
+      const navBtn = e.target.closest('[data-go]');
+      if (navBtn){
+        const go = navBtn.dataset.go;
+        if (go==='home'){ show('home'); }
+        if (go==='scientific'){ toScientific(); }
+        if (go==='common'){ toCommon(); }
+        if (go==='leaf'){ toLeaf(); }
+        if (go==='fruit'){ toFruit(); }
+      }
+    });
+
+    function initListSearch(items, tKey, sKey, titleText){
+      const input = el('#searchInput');
+      input.value = '';
+      input.oninput = ()=>{
+        const q = input.value.toLowerCase().trim();
+        const filtered = !q ? items : items.filter(r =>
+          (r[tKey]||'').toLowerCase().includes(q) || (r[sKey]||'').toLowerCase().includes(q)
+        );
+        renderList(filtered, tKey, sKey, titleText);
+        el('#searchInput').value = q;
+      };
+    }
+
+    el('#quickSearchBtn').addEventListener('click', ()=>{
+      show('home');
+      setTimeout(()=>{
+        el('#homeSearch').focus();
+        el('#homeSearch').scrollIntoView({behavior: state.prefersReduced ? 'auto' : 'smooth', block:'center'});
+      }, 150);
+    });
+
+    function doGlobalSearch(){
+      const q = (el('#homeSearch').value||'').toLowerCase().trim();
+      const items = !q ? state.data : state.data.filter(r =>
+        (r.scientific_name||'').toLowerCase().includes(q) ||
+        (r.common_name||'').toLowerCase().includes(q)
+      );
+      renderList(items, 'scientific_name', 'common_name', q ? `Results for "${q}"` : 'All species');
+      initListSearch(items, 'scientific_name', 'common_name', 'Search');
+    }
+    el('#homeSearchBtn').addEventListener('click', doGlobalSearch);
+    el('#homeSearch').addEventListener('keydown', e => { if (e.key==='Enter') doGlobalSearch(); });
+
+    function toScientific(){
+      const items = [...state.data].sort((a,b)=> a.scientific_name.localeCompare(b.scientific_name));
+      renderList(items, 'scientific_name', 'common_name', 'Scientific Name');
+      initListSearch(items, 'scientific_name', 'common_name', 'Scientific Name');
+    }
+    function toCommon(){
+      const items = [...state.data].sort((a,b)=> (a.common_name||'').localeCompare(b.common_name||''));
+      renderList(items, 'common_name', 'scientific_name', 'Common Name');
+      initListSearch(items, 'common_name', 'scientific_name', 'Common Name');
+    }
+    function toLeaf(){
+      renderChipsWithIcons(el('#leafTopChips'), state.filters.leaf_toplevel, state.filters.leaf_chip_icons);
+      el('#leafResults').innerHTML = '';
+      show('leaf');
+    }
+    function toFruit(){
+      renderChipsWithIcons(el('#fruitChips'), state.filters.fruit_types, state.filters.fruit_chip_icons);
+      el('#fruitResults').innerHTML = '';
+      show('fruit');
+    }
+
+    function attachRipples(root=document){
+      els('.ripple', root).forEach(elm=>{
+        elm.onpointerdown = (e)=>{
+          if(e.button!==0) return;
+          const r = document.createElement('span');
+          r.className='r';
+          const rect = elm.getBoundingClientRect();
+          const size = Math.max(rect.width, rect.height);
+          r.style.width = r.style.height = size + 'px';
+          r.style.left = (e.clientX - rect.left - size/2) + 'px';
+          r.style.top  = (e.clientY - rect.top  - size/2) + 'px';
+          elm.appendChild(r);
+          setTimeout(()=>r.remove(), 600);
+        };
+      });
+    }
+
+    fetch('api/species')
+      .then(r=>r.ok ? r.json() : Promise.reject('API error'))
+      .then(payload=>{
+        state.data = payload.items || [];
+        Object.assign(state.filters, payload.filters || {});
+        attachRipples();
+        show('home');
+      })
+      .catch(err=>{ console.error(err); alert('Could not load data from API.'); });
+  </script>
+</body>
+</html>
