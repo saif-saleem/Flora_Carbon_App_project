@@ -2,6 +2,8 @@ from flask import Flask, jsonify, render_template
 import pandas as pd
 import os, re, glob
 from functools import lru_cache
+from flask_cors import CORS
+
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_XLSX = os.path.join(APP_ROOT, 'data', 'species.xlsx')
@@ -26,6 +28,7 @@ ICON_DIRS = {
 ALLOWED_IMG_EXT = {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'}
 
 app = Flask(__name__)
+CORS(app)
 
 REQUIRED_COLS = [
     'Sr No','Scientific name','Etymology','Common name','Habitat','Phenology',
