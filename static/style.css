@@ -279,6 +279,28 @@ body{
   background:var(--card);
   box-shadow:var(--shadow);
 }
+/* --- Slider stacking & nav hit area --- */
+.slider{ position:relative; overflow:hidden; }
+.slider .s-stage{ position:relative; z-index:1; }
+
+.slider .s-nav{
+  position:absolute;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:2;                 /* ABOVE slides */
+  pointer-events:auto;
+  width:44px; height:44px;
+  display:grid; place-items:center;
+  background:var(--glass);
+  border:1px solid var(--line);
+  border-radius:50%;
+  box-shadow:var(--shadow);
+  cursor:pointer;
+  user-select:none;
+}
+.slider .s-nav.prev{ left:.5rem; }
+.slider .s-nav.next{ right:.5rem; }
+
 .s-stage{
   display:flex;
   flex-direction:row;           /* horizontal flow */

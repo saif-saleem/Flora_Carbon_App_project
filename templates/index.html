@@ -129,33 +129,26 @@
     const el = (s) => document.querySelector(s);
     const els = (s, root=document) => Array.from(root.querySelectorAll(s));
 
-    // ---- FIXED: show() NO LONGER clears other views ----
     function show(viewId, push = true){
       els('.view').forEach(v=>v.classList.remove('active'));
       const target = el('#view-'+viewId);
       target.classList.add('active');
 
-      if (push && state.history[state.history.length-1] !== viewId) {
-        state.history.push(viewId);
-      }
+      if (push && state.history[state.history.length-1] !== viewId) state.history.push(viewId);
       el('#backBtn').hidden = state.history.length <= 1;
       el('#menuBtn').hidden = state.history.length > 1;
 
       closeDrawer(); closeSheet();
     }
 
-    /* ------ Back: lightweight, no cleanup ------ */
     function back(){
       if (state.history.length > 1){
         state.history.pop();
         const prev = state.history[state.history.length - 1];
-
         els('.view').forEach(v => v.classList.remove('active'));
         el('#view-' + prev).classList.add('active');
-
         el('#backBtn').hidden = state.history.length <= 1;
         el('#menuBtn').hidden = state.history.length > 1;
-
         closeDrawer(); closeSheet();
       }
     }
@@ -177,10 +170,8 @@
             </div>
           </li>`;
       }).join('');
-
       el('#listSkeleton').hidden = true;
       list.hidden = false;
-
       show('list');
       attachRipples(list);
     }
@@ -226,8 +217,11 @@
         dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
       }
 
-      container.querySelector('.s-nav.prev')?.addEventListener('click', ()=>go(idx-1));
-      container.querySelector('.s-nav.next')?.addEventListener('click', ()=>go(idx+1));
+      const prevBtn = container.querySelector('.s-nav.prev');
+      const nextBtn = container.querySelector('.s-nav.next');
+      if (prevBtn) prevBtn.addEventListener('click', (e)=>{ e.stopPropagation(); go(idx-1); });
+      if (nextBtn) nextBtn.addEventListener('click', (e)=>{ e.stopPropagation(); go(idx+1); });
+
       dots.forEach(d=> d.addEventListener('click', ()=> go(+d.dataset.i)));
 
       // keyboard
@@ -247,7 +241,7 @@
         sx=dx=0;
       }, {passive:true});
 
-      // lightbox on click
+      // lightbox
       stage.addEventListener('click', e=>{
         const img = e.target.closest('img');
         if (!img) return;
@@ -271,14 +265,11 @@
               <div class="kv-body">${value || '-'}</div>
             </div>
           `;
-
           const spIcon   = rec.icons && rec.icons.species ? `<img class="detail-ico" src="${rec.icons.species}" alt="">` : '';
           const leafIco  = rec.icons && rec.icons.leaf    ? `<img class="mini-ico"   src="${rec.icons.leaf}"    alt="">` : '';
           const fruitIco = rec.icons && rec.icons.fruit   ? `<img class="mini-ico"   src="${rec.icons.fruit}"   alt="">` : '';
-
           const photos = Array.isArray(rec.photos) ? rec.photos : [];
 
-          /* Slider FIRST, then details */
           el('#detailCard').innerHTML = `
             ${photos.length ? `
               <div id="photoSlider" class="slider" aria-roledescription="carousel" aria-label="Species photos">
@@ -291,9 +282,7 @@
                   ${photos.map((_,i)=>`<button class="s-dot ${i===0?'active':''}" data-i="${i}" aria-label="Go to photo ${i+1}"></button>`).join('')}
                 </div>
               </div>
-            ` : `
-              <div class="no-photos big">No photos yet.</div>
-            `}
+            ` : `<div class="no-photos big">No photos yet.</div>`}
 
             <div class="detail-header">
               ${spIcon}
@@ -302,7 +291,6 @@
                 ${rec.common_name ? `<div class="detail-sub">${rec.common_name}</div>` : ''}
               </div>
             </div>
-
             ${section('Habitat', rec.habitat)}
             ${section('Phenology', rec.phenology)}
             ${section('Identification Character', rec.identification)}
@@ -311,7 +299,6 @@
             ${section('Seed Germination', rec.seed_germination)}
             ${section('Pest', rec.pest)}
           `;
-
           if (photos.length) initSlider(document.getElementById('photoSlider'));
           show('detail');
         })
@@ -350,7 +337,6 @@
         container.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
         chip.classList.add('active');
         const value = chip.dataset.value;
-
         if (container.id === 'leafTopChips'){
           const results = state.data.filter(r=> r.leaf_category === value);
           if (value === 'Pinnately compound'){
@@ -362,8 +348,7 @@
             renderResultList(el('#leafResults'), results);
           }
         } else if (container.id === 'leafSubChips'){
-          const results = state.data.filter(r=> r.leaf_category === 'Pinnately compound'
-                                            && (r.leaf_subtype||'') === value);
+          const results = state.data.filter(r=> r.leaf_category === 'Pinnately compound' && (r.leaf_subtype||'') === value);
           renderResultList(el('#leafResults'), results);
         } else if (container.id === 'fruitChips'){
           const results = state.data.filter(r=> (r.fruit_type||'').toLowerCase() === value.toLowerCase());
